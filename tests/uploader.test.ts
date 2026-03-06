@@ -39,6 +39,26 @@ describe("DeepseekUploader", () => {
     await expect(DeepseekUploader.sendData("test.png", "test")).rejects.toThrow("Authentication session not found");
   });
 
+  it("should throw error if prompt file is missing and no prompt provided", async () => {
+    const { chromium } = await import("playwright-extra");
+    vi.mocked(fs.stat).mockResolvedValue({ size: 1024 } as any);
+    vi.mocked(DeepseekAuth.loadSession).mockResolvedValue({ cookies: [], localStorage: {}, lastUpdated: "" });
+    vi.mocked(fs.readFile).mockRejectedValue(new Error("File not found"));
+    
+    const mockContext = {
+      addCookies: vi.fn(),
+      addInitScript: vi.fn(),
+      newPage: vi.fn(),
+    };
+    const mockBrowser = {
+      newContext: vi.fn().mockResolvedValue(mockContext),
+      close: vi.fn(),
+    };
+    vi.mocked(chromium.launch).mockResolvedValue(mockBrowser as any);
+    
+    await expect(DeepseekUploader.sendData("test.png")).rejects.toThrow("Failed to load prompt");
+  });
+
   it("should perform upload and send prompt", async () => {
     const { chromium } = await import("playwright-extra");
     vi.mocked(fs.stat).mockResolvedValue({ size: 1024 } as any);

@@ -3,6 +3,11 @@ import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import { DeepseekAuth, AuthSession } from "./auth.js";
 import fs from "fs/promises";
 import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// Go up two levels from dist/utils/ or src/utils/ to reach the project root
+const APP_ROOT = path.resolve(__dirname, "..", "..");
 
 // Apply stealth plugin
 chromium.use(StealthPlugin());
@@ -12,7 +17,7 @@ chromium.use(StealthPlugin());
  */
 export class DeepseekUploader {
   private static MAX_FILE_SIZE = 50 * 1024 * 1024; // Increased to 50MB
-  private static PROMPT_FILE = path.join(process.cwd(), "OCR-extraction-prompt.json");
+  private static PROMPT_FILE = process.env.OCR_PROMPT_FILE || path.join(APP_ROOT, "OCR-extraction-prompt.json");
 
   /**
    * Load a specific prompt from the configuration file.
@@ -21,10 +26,14 @@ export class DeepseekUploader {
     try {
       const data = await fs.readFile(this.PROMPT_FILE, "utf-8");
       const config = JSON.parse(data);
-      return config[type] || config.ocr_prompt;
-    } catch (error) {
-      console.error(`Error loading prompt from ${this.PROMPT_FILE}:`, error);
-      return "Please perform OCR on the attached document and provide the extracted text.";
+      if (!config[type]) {
+        throw new Error(`Prompt type '${type}' not found in ${this.PROMPT_FILE}`);
+      }
+      return config[type];
+    } catch (error: any) {
+      const msg = `Failed to load prompt from ${this.PROMPT_FILE}: ${error.message}`;
+      console.error(msg);
+      throw new Error(msg);
     }
   }
 
@@ -41,7 +50,10 @@ export class DeepseekUploader {
       throw new Error("Authentication session not found. Please run the authenticate tool first.");
     }
 
-    // 3. Launch stealth browser
+    // 3. Resolve prompt early
+    const finalPrompt = prompt || await this.loadPrompt('ocr_prompt');
+
+    // 4. Launch stealth browser
     const browser = await chromium.launch({ 
       headless: true,
       args: ["--disable-blink-features=AutomationControlled"]
@@ -71,9 +83,6 @@ export class DeepseekUploader {
       if (page.url().includes("/login")) {
         throw new Error("Session expired. Please run the authenticate tool again.");
       }
-
-      // 5. Use pre-determined prompt if none provided
-      const finalPrompt = prompt || await this.loadPrompt('ocr_prompt');
 
       console.error("Uploading file...");
       // Deepseek usually has an input[type='file']
@@ -115,16 +124,9 @@ export class DeepseekUploader {
 
         // Check if the "Stop" generating button is visible
         const isGenerating = await page.evaluate(() => {
-          // Look for buttons with specific icons or text that indicate generating state
-          // e.g. a button that has a 'stop' icon or a 'generating' tooltip
           const stopButton = document.querySelector('button[aria-label*="Stop"], button[title*="Stop"]');
           return !!stopButton;
         });
-
-        if (!isGenerating && lastText.length > 0) {
-          // If no stop button is found and we have some text, it might be done
-          // But Deepseek sometimes takes a second to show the button, so we use stability too.
-        }
 
         await page.waitForTimeout(2000);
       }
@@ -136,9 +138,10 @@ export class DeepseekUploader {
       console.error(`Error during data sending: ${error.message}`);
       throw error;
     } finally {
-      // 7. Ensure browser closes (hibernation state)
-      await browser.close();
-      console.error("Browser closed. Returning to hibernation.");
+      if (browser) {
+        await browser.close();
+        console.error("Browser closed. Returning to hibernation.");
+      }
     }
   }
 
