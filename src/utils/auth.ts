@@ -55,6 +55,16 @@ export class DeepseekAuth {
    * This opens a browser window for the user to sign in manually.
    */
   static async authenticate(): Promise<AuthSession> {
+    const isCI = process.env.CI === "true" || process.env.GITHUB_ACTIONS === "true";
+    const allowInteractive = process.env.ALLOW_INTERACTIVE_AUTH === "true" || (!isCI && process.env.HEADLESS !== "true");
+
+    if (!allowInteractive) {
+      throw new Error(
+        "Interactive authentication is required but the current environment does not support headed browsers (CI or HEADLESS detected). " +
+        "Please run this tool in a local environment with a display to sign in to Deepseek, or ensure ALLOW_INTERACTIVE_AUTH=true is set if a display is available."
+      );
+    }
+
     console.error("Launching browser for authentication...");
     
     const browser = await chromium.launch({ 

@@ -76,4 +76,15 @@ describe("DeepseekAuth", () => {
     expect(session.localStorage).toEqual({ some: "data" });
     expect(mockBrowser.close).toHaveBeenCalled();
   });
+
+  it("should throw error if authentication is attempted in CI without explicit permission", async () => {
+    const originalCI = process.env.CI;
+    process.env.CI = "true";
+    
+    await expect(DeepseekAuth.authenticate()).rejects.toThrow(
+      "Interactive authentication is required but the current environment does not support headed browsers"
+    );
+    
+    process.env.CI = originalCI;
+  });
 });
