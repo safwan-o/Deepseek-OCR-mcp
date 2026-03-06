@@ -1,0 +1,9 @@
+node_modules
+dist
+.git
+.env
+.deepseek-session.json
+*.log
+tests
+investigation.png
+investigate_dom.ts

@@ -5,6 +5,7 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { TOOLS, handleCallTool } from "./handlers/tools.js";
+import { logger } from "./utils/logger.js";
 
 /**
  * The Deepseek OCR MCP Server.
@@ -30,15 +31,17 @@ class DeepseekOcrServer {
     this.setupHandlers();
     
     // Error handling
-    this.server.onerror = (error) => console.error("[MCP Error]", error);
+    this.server.onerror = (error) => logger.error({ error }, "MCP Error");
     
     // Graceful shutdown
     process.on("SIGINT", async () => {
+      logger.info("Received SIGINT, closing server...");
       await this.server.close();
       process.exit(0);
     });
     
     process.on("SIGTERM", async () => {
+      logger.info("Received SIGTERM, closing server...");
       await this.server.close();
       process.exit(0);
     });
@@ -57,9 +60,12 @@ class DeepseekOcrServer {
   async run() {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.error("Deepseek OCR MCP server running on stdio");
+    logger.info("Deepseek OCR MCP server running on stdio");
   }
 }
 
 const server = new DeepseekOcrServer();
-server.run().catch(console.error);
+server.run().catch((error) => {
+  logger.error({ error }, "Fatal error during server run");
+  process.exit(1);
+});

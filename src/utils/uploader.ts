@@ -4,6 +4,7 @@ import { DeepseekAuth, AuthSession } from "./auth.js";
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import { logger } from "./logger.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Go up two levels from dist/utils/ or src/utils/ to reach the project root
@@ -32,7 +33,7 @@ export class DeepseekUploader {
       return config[type];
     } catch (error: any) {
       const msg = `Failed to load prompt from ${this.PROMPT_FILE}: ${error.message}`;
-      console.error(msg);
+      logger.error(msg);
       throw new Error(msg);
     }
   }
@@ -64,7 +65,7 @@ export class DeepseekUploader {
         userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       });
 
-      // 4. Restore session (cookies and localStorage)
+      // 5. Restore session (cookies and localStorage)
       await context.addCookies(session.cookies);
       
       const localStorageData = session.localStorage;
@@ -76,7 +77,7 @@ export class DeepseekUploader {
 
       const page = await context.newPage();
       
-      console.error("Navigating to Deepseek Chat...");
+      logger.info("Navigating to Deepseek Chat...");
       await page.goto("https://chat.deepseek.com/", { waitUntil: "networkidle", timeout: 60000 });
 
       // Check if logged in
@@ -89,19 +90,19 @@ export class DeepseekUploader {
         return document.querySelectorAll(".ds-markdown, .assistant-message").length;
       });
 
-      console.error("Uploading file...");
+      logger.info("Uploading file...");
       // Deepseek usually has an input[type='file']
       const fileInput = await page.waitForSelector("input[type='file']", { timeout: 30000 });
       await fileInput.setInputFiles(path.resolve(filePath));
 
       // Wait for upload to complete by detecting the appearance of an attachment preview
-      console.error("Waiting for upload to finish...");
+      logger.info("Waiting for upload to finish...");
       await page.waitForSelector(".ds-upload-list-item, [class*='upload-list-item'], [class*='attachment-preview']", { 
         timeout: 30000,
         state: "attached"
       });
 
-      console.error("Sending prompt and waiting for generation...");
+      logger.info("Sending prompt and waiting for generation...");
       const messageInput = await page.waitForSelector("textarea, div[contenteditable='true']", { timeout: 30000 });
       await messageInput.fill(finalPrompt);
       await messageInput.press("Enter");
@@ -146,16 +147,16 @@ export class DeepseekUploader {
         throw new Error(`Stability not reached within ${MAX_WAIT_STABLE * 2}s. The generation may still be in progress or failed. Please check the chat manually.`);
       }
 
-      console.error("Extraction complete! Capturing OCR result...");
+      logger.info("Extraction complete! Capturing OCR result...");
       return lastText;
 
     } catch (error: any) {
-      console.error(`Error during data sending: ${error.message}`);
+      logger.error({ error }, "Error during data sending");
       throw error;
     } finally {
       if (browser) {
         await browser.close();
-        console.error("Browser closed. Returning to hibernation.");
+        logger.info("Browser closed. Returning to hibernation.");
       }
     }
   }
