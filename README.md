@@ -89,7 +89,7 @@ To add this server to your `gemini-cli` configuration:
      "mcpServers": {
        "deepseek-ocr": {
          "command": "node",
-         "args": ["/home/safwan/Deepseek-OCR-mcp/dist/index.js"]
+         "args": ["<path-to-project>/dist/index.js"]
        }
      }
    }
