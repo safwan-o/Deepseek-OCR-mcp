@@ -58,6 +58,7 @@ describe("DeepseekUploader", () => {
     const mockContext = {
       newPage: vi.fn().mockResolvedValue(mockPage),
       addCookies: vi.fn(),
+      addInitScript: vi.fn(),
     };
     const mockBrowser = {
       newContext: vi.fn().mockResolvedValue(mockContext),

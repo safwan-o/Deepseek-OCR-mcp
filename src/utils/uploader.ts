@@ -36,7 +36,16 @@ export class DeepseekUploader {
       userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     });
 
+    // 4. Restore session (cookies and localStorage)
     await context.addCookies(session.cookies);
+    
+    // Inject localStorage data before the page loads
+    const localStorageData = session.localStorage;
+    await context.addInitScript((data) => {
+      for (const [key, value] of Object.entries(data)) {
+        window.localStorage.setItem(key, value);
+      }
+    }, localStorageData);
 
     const page = await context.newPage();
     
