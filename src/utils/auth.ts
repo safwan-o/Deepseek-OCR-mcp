@@ -4,6 +4,7 @@ import { chromium } from "playwright-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import { BrowserContext } from "playwright";
 import dotenv from "dotenv";
+import { logger } from "./logger.js";
 
 dotenv.config();
 
@@ -27,14 +28,24 @@ export class DeepseekAuth {
       await fs.access(SESSION_FILE);
       return true;
     } catch {
-      return false;
+      return !!process.env.DEEPSEEK_SESSION_JSON;
     }
   }
 
   /**
-   * Load the session data from disk.
+   * Load the session data from disk or environment variable.
    */
   static async loadSession(): Promise<AuthSession | null> {
+    // 1. Try to load from environment variable first
+    if (process.env.DEEPSEEK_SESSION_JSON) {
+      try {
+        return JSON.parse(process.env.DEEPSEEK_SESSION_JSON);
+      } catch (error) {
+        logger.error({ error }, "Failed to parse DEEPSEEK_SESSION_JSON environment variable");
+      }
+    }
+
+    // 2. Fallback to session file on disk
     try {
       const data = await fs.readFile(SESSION_FILE, "utf-8");
       return JSON.parse(data);
@@ -65,7 +76,7 @@ export class DeepseekAuth {
       );
     }
 
-    console.error("Launching browser for authentication...");
+    logger.info("Launching browser for authentication...");
     
     const browser = await chromium.launch({ 
       headless: false,
@@ -81,7 +92,7 @@ export class DeepseekAuth {
 
       await page.goto("https://chat.deepseek.com/login");
 
-      console.error("Please sign in to Deepseek in the browser window.");
+      logger.info("Please sign in to Deepseek in the browser window.");
       
       // Wait for the URL to change to the chat interface, explicitly avoiding the login page
       await page.waitForURL((url) => {
@@ -89,7 +100,7 @@ export class DeepseekAuth {
         return (path === "/" || path === "/chat") && url.hostname === "chat.deepseek.com";
       }, { timeout: 300000 });
 
-      console.error("Login detected! Capturing session data...");
+      logger.info("Login detected! Capturing session data...");
 
       const cookies = await context.cookies();
       const localStorageData = await page.evaluate(() => {
@@ -110,7 +121,7 @@ export class DeepseekAuth {
       };
 
       await this.saveSession(session);
-      console.error("Authentication successful! Session saved.");
+      logger.info("Authentication successful! Session saved.");
       return session;
     } finally {
       await browser.close();
