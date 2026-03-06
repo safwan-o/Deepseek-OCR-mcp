@@ -72,43 +72,49 @@ export class DeepseekAuth {
       args: ["--disable-blink-features=AutomationControlled"]
     });
     
-    const context = await browser.newContext({
-      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    });
+    try {
+      const context = await browser.newContext({
+        userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      });
 
-    const page = await context.newPage();
+      const page = await context.newPage();
 
-    await page.goto("https://chat.deepseek.com/login");
+      await page.goto("https://chat.deepseek.com/login");
 
-    console.error("Please sign in to Deepseek in the browser window.");
-    
-    await page.waitForURL(/chat\.deepseek\.com\/?(chat)?/, { timeout: 300000 });
+      console.error("Please sign in to Deepseek in the browser window.");
+      
+      // Wait for the URL to change to the chat interface, explicitly avoiding the login page
+      await page.waitForURL((url) => {
+        const path = url.pathname;
+        return (path === "/" || path === "/chat") && url.hostname === "chat.deepseek.com";
+      }, { timeout: 300000 });
 
-    console.error("Login detected! Capturing session data...");
+      console.error("Login detected! Capturing session data...");
 
-    const cookies = await context.cookies();
-    const localStorageData = await page.evaluate(() => {
-      const data: Record<string, string> = {};
-      for (let i = 0; i < window.localStorage.length; i++) {
-        const key = window.localStorage.key(i);
-        if (key) {
-          data[key] = window.localStorage.getItem(key) || "";
+      const cookies = await context.cookies();
+      const localStorageData = await page.evaluate(() => {
+        const data: Record<string, string> = {};
+        for (let i = 0; i < window.localStorage.length; i++) {
+          const key = window.localStorage.key(i);
+          if (key) {
+            data[key] = window.localStorage.getItem(key) || "";
+          }
         }
-      }
-      return data;
-    });
+        return data;
+      });
 
-    const session: AuthSession = {
-      cookies,
-      localStorage: localStorageData,
-      lastUpdated: new Date().toISOString(),
-    };
+      const session: AuthSession = {
+        cookies,
+        localStorage: localStorageData,
+        lastUpdated: new Date().toISOString(),
+      };
 
-    await this.saveSession(session);
-    await browser.close();
-
-    console.error("Authentication successful! Session saved.");
-    return session;
+      await this.saveSession(session);
+      console.error("Authentication successful! Session saved.");
+      return session;
+    } finally {
+      await browser.close();
+    }
   }
 
   /**
