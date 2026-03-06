@@ -1,0 +1,4 @@
+{
+  "ocr_prompt": "Please perform a high-fidelity OCR extraction on the attached document. Extract all text exactly as it appears, preserving the layout and structure where possible. If there are tables, represent them in Markdown format. Do not provide any introductory or concluding remarks, just the extracted text content.",
+  "analysis_prompt": "Please analyze the attached document and provide a detailed summary of its contents, key points, and any specific data found."
+}

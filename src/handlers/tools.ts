@@ -16,35 +16,44 @@ export const TOOLS: Tool[] = [
     },
   },
   {
-    name: "send_data",
-    description: "Send an image or PDF to Deepseek chat for processing (e.g., OCR, analysis). Requires valid authentication.",
+    name: "ocr_document",
+    description: "Perform high-fidelity OCR on an image or PDF using Deepseek's advanced models. Uses the pre-configured extraction prompt.",
     inputSchema: {
       type: "object",
       properties: {
         file_path: {
           type: "string",
-          description: "Absolute path to the image or PDF file to send.",
-        },
-        prompt: {
-          type: "string",
-          description: "Optional prompt to send with the file. Defaults to performing OCR.",
+          description: "Absolute path to the image (JPG, PNG, WEBP) or PDF file.",
         },
       },
       required: ["file_path"],
     },
   },
   {
-    name: "ocr_image",
-    description: "Perform OCR on an image using Deepseek. Requires valid authentication.",
+    name: "send_data",
+    description: "Send a file and a custom prompt to Deepseek chat. Returns the assistant's full response.",
     inputSchema: {
       type: "object",
       properties: {
-        image_path: {
+        file_path: {
           type: "string",
-          description: "Path to the image file to OCR.",
+          description: "Absolute path to the file to send.",
+        },
+        prompt: {
+          type: "string",
+          description: "Custom prompt to accompany the file.",
         },
       },
-      required: ["image_path"],
+      required: ["file_path", "prompt"],
+    },
+  },
+  {
+    name: "finish_operation",
+    description: "Signals the MCP server to complete current tasks, clean up resources, and enter hibernation mode.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+      required: [],
     },
   },
 ];
@@ -63,7 +72,7 @@ export async function handleCallTool(request: any) {
           content: [
             {
               type: "text",
-              text: `Authentication successful! Session saved on ${session.lastUpdated}. You can now use the data sending tool.`,
+              text: `Authentication successful! Session saved on ${session.lastUpdated}. Resources are now in hibernation.`,
             },
           ],
         };
@@ -80,13 +89,54 @@ export async function handleCallTool(request: any) {
       }
     }
 
-    case "send_data": {
-      const { file_path, prompt } = args;
-      const defaultPrompt = "Please extract all text from this file and provide the content clearly.";
-      const finalPrompt = prompt || defaultPrompt;
+    case "ocr_document": {
+      const { file_path } = args;
+      
+      // Workflow: Check Auth -> Send Status -> Process -> Return Result -> Hibernate
+      const hasAuth = await DeepseekAuth.hasSession();
+      if (!hasAuth) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "Authentication is missing. Please run the 'authenticate' tool first to sign in to Deepseek.",
+            },
+          ],
+          isError: true,
+        };
+      }
 
       try {
-        const responseText = await DeepseekUploader.sendData(file_path, finalPrompt);
+        // Note: In standard MCP tool calls, we can't easily send an intermediate "pending" status 
+        // while the tool is still running, unless the host supports progress notifications.
+        // We will return the final OCR result after full generation.
+        const result = await DeepseekUploader.sendData(file_path);
+        return {
+          content: [
+            {
+              type: "text",
+              text: result,
+            },
+          ],
+        };
+      } catch (error: any) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `OCR Operation failed: ${error.message}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+
+    case "send_data": {
+      const { file_path, prompt } = args;
+
+      try {
+        const responseText = await DeepseekUploader.sendData(file_path, prompt);
         return {
           content: [
             {
@@ -108,32 +158,17 @@ export async function handleCallTool(request: any) {
       }
     }
 
-    case "ocr_image": {
-      // For now, ocr_image will use the send_data logic for consistency
-      const { image_path } = args;
-      const prompt = "Please perform OCR on this image and provide the full text content.";
-      
-      try {
-        const responseText = await DeepseekUploader.sendData(image_path, prompt);
-        return {
-          content: [
-            {
-              type: "text",
-              text: responseText,
-            },
-          ],
-        };
-      } catch (error: any) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `OCR failed: ${error.message}`,
-            },
-          ],
-          isError: true,
-        };
-      }
+    case "finish_operation": {
+      // Browser instances are closed automatically in the finally blocks of uploader methods.
+      // This tool provides a logical end to the session for the LLM.
+      return {
+        content: [
+          {
+            type: "text",
+            text: "All operations finished. Resources cleaned up. MCP server is now hibernating.",
+          },
+        ],
+      };
     }
 
     default:

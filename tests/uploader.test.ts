@@ -29,8 +29,8 @@ describe("DeepseekUploader", () => {
   });
 
   it("should validate file existence and size", async () => {
-    vi.mocked(fs.stat).mockResolvedValue({ size: 11 * 1024 * 1024 } as any);
-    await expect(DeepseekUploader.sendData("test.png", "test")).rejects.toThrow("exceeds 10MB limit");
+    vi.mocked(fs.stat).mockResolvedValue({ size: 51 * 1024 * 1024 } as any);
+    await expect(DeepseekUploader.sendData("test.png", "test")).rejects.toThrow("exceeds 50MB limit");
   });
 
   it("should fail if no session found", async () => {
