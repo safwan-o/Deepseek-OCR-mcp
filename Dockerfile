@@ -1,6 +1,9 @@
 # Use Microsoft's Playwright image as base since it has all browser dependencies
 FROM mcr.microsoft.com/playwright:v1.45.0-jammy
 
+# Create a non-root user and group
+RUN groupadd -r mcpuser && useradd -r -g mcpuser -m -d /home/mcpuser mcpuser
+
 WORKDIR /app
 
 # Copy package files
@@ -15,8 +18,11 @@ COPY . .
 # Build the project
 RUN npm run build
 
-# Expose port (MCP typically uses stdio, but some hosts might use HTTP)
-# EXPOSE 3000
+# Set ownership of the application directory to the non-root user
+RUN chown -R mcpuser:mcpuser /app
+
+# Switch to the non-root user
+USER mcpuser
 
 # Set environment variables
 ENV NODE_ENV=production
