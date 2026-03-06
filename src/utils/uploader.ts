@@ -94,8 +94,12 @@ export class DeepseekUploader {
       const fileInput = await page.waitForSelector("input[type='file']", { timeout: 30000 });
       await fileInput.setInputFiles(path.resolve(filePath));
 
-      // Wait for upload to complete
-      await page.waitForTimeout(3000); 
+      // Wait for upload to complete by detecting the appearance of an attachment preview
+      console.error("Waiting for upload to finish...");
+      await page.waitForSelector(".ds-upload-list-item, [class*='upload-list-item'], [class*='attachment-preview']", { 
+        timeout: 30000,
+        state: "attached"
+      });
 
       console.error("Sending prompt and waiting for generation...");
       const messageInput = await page.waitForSelector("textarea, div[contenteditable='true']", { timeout: 30000 });
