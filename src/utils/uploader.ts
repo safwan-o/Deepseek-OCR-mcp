@@ -84,6 +84,11 @@ export class DeepseekUploader {
         throw new Error("Session expired. Please run the authenticate tool again.");
       }
 
+      // Snapshot the initial message count before sending the new prompt
+      const initialMessagesCount = await page.evaluate(() => {
+        return document.querySelectorAll(".ds-markdown, .assistant-message").length;
+      });
+
       console.error("Uploading file...");
       // Deepseek usually has an input[type='file']
       const fileInput = await page.waitForSelector("input[type='file']", { timeout: 30000 });
@@ -98,25 +103,27 @@ export class DeepseekUploader {
       await messageInput.press("Enter");
 
       // 6. Wait for full output (detecting stop button disappearance or stable text)
-      // We look for the "Stop" button (usually a square icon in a button)
-      // Or we can poll for the assistant response until it stabilizes.
       await page.waitForTimeout(5000); // Initial wait for generation to start
       
       let lastText = "";
       let stableCount = 0;
-      const MAX_WAIT_STABLE = 30; // 30 * 2s = 60s max wait for stability
+      const MAX_WAIT_STABLE = 45; // 45 * 2s = 90s max wait for stability
+      let reachedStability = false;
 
       for (let i = 0; i < MAX_WAIT_STABLE; i++) {
-        const currentText = await page.evaluate(() => {
+        const currentText = await page.evaluate((count) => {
           const messages = document.querySelectorAll(".ds-markdown, .assistant-message");
-          if (messages.length === 0) return "";
+          // Only look at messages after the initial snapshot
+          if (messages.length <= count) return "";
           return (messages[messages.length - 1] as HTMLElement).innerText;
-        });
+        }, initialMessagesCount);
 
-        if (currentText && currentText === lastText && currentText !== "No response detected yet.") {
+        if (currentText && currentText === lastText && currentText !== "") {
           stableCount++;
-          // If the text is stable for 2 consecutive checks, we assume it's done
-          if (stableCount >= 2) break;
+          if (stableCount >= 3) { // Require 3 stable checks for higher confidence
+            reachedStability = true;
+            break;
+          }
         } else {
           stableCount = 0;
           lastText = currentText;
@@ -131,8 +138,12 @@ export class DeepseekUploader {
         await page.waitForTimeout(2000);
       }
 
+      if (!reachedStability) {
+        throw new Error(`Stability not reached within ${MAX_WAIT_STABLE * 2}s. The generation may still be in progress or failed. Please check the chat manually.`);
+      }
+
       console.error("Extraction complete! Capturing OCR result...");
-      return lastText || "No OCR output captured. Please check the document manually.";
+      return lastText;
 
     } catch (error: any) {
       console.error(`Error during data sending: ${error.message}`);

@@ -95,4 +95,41 @@ describe("DeepseekUploader", () => {
     expect(mockPage.waitForSelector).toHaveBeenCalledWith("textarea, div[contenteditable='true']", expect.anything());
     expect(result).toBe("OCR response text");
   });
+
+  it("should throw error if stability is not reached within timeout", async () => {
+    const { chromium } = await import("playwright-extra");
+    vi.mocked(fs.stat).mockResolvedValue({ size: 1024 } as any);
+    vi.mocked(DeepseekAuth.loadSession).mockResolvedValue({ cookies: [], localStorage: {}, lastUpdated: "" });
+    vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify({ ocr_prompt: "Test prompt" }));
+    
+    const mockPage = {
+      goto: vi.fn(),
+      url: vi.fn().mockReturnValue("https://chat.deepseek.com/"),
+      waitForSelector: vi.fn().mockResolvedValue({ 
+        setInputFiles: vi.fn(),
+        fill: vi.fn(),
+        press: vi.fn()
+      }),
+      waitForTimeout: vi.fn(),
+      // Mocking evaluate to always return a new string, preventing stability
+      evaluate: vi.fn().mockImplementation((fn, arg) => {
+        if (typeof fn === 'function' && fn.toString().includes('length')) return 0; // initialMessagesCount
+        if (typeof fn === 'function' && fn.toString().includes('Stop')) return true; // isGenerating
+        return `dynamic text ${Math.random()}`; // currentText
+      }),
+    };
+    const mockContext = {
+      newPage: vi.fn().mockResolvedValue(mockPage),
+      addCookies: vi.fn(),
+      addInitScript: vi.fn(),
+    };
+    const mockBrowser = {
+      newContext: vi.fn().mockResolvedValue(mockContext),
+      close: vi.fn(),
+    };
+
+    vi.mocked(chromium.launch).mockResolvedValue(mockBrowser as any);
+
+    await expect(DeepseekUploader.sendData("test.png")).rejects.toThrow("Stability not reached");
+  });
 });
