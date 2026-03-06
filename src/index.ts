@@ -4,11 +4,12 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
+import { TOOLS, handleCallTool } from "./handlers/tools.js";
 
 /**
  * The Deepseek OCR MCP Server.
  * 
- * This server provides tools for OCR using Deepseek models.
+ * Provides OCR capabilities using Deepseek models with integrated authentication.
  */
 class DeepseekOcrServer {
   private server: Server;
@@ -17,7 +18,7 @@ class DeepseekOcrServer {
     this.server = new Server(
       {
         name: "deepseek-ocr-mcp",
-        version: "1.0.0",
+        version: "1.1.0",
       },
       {
         capabilities: {
@@ -30,45 +31,27 @@ class DeepseekOcrServer {
     
     // Error handling
     this.server.onerror = (error) => console.error("[MCP Error]", error);
+    
+    // Graceful shutdown
     process.on("SIGINT", async () => {
+      await this.server.close();
+      process.exit(0);
+    });
+    
+    process.on("SIGTERM", async () => {
       await this.server.close();
       process.exit(0);
     });
   }
 
   private setupHandlers() {
+    // List all tools
     this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [
-        {
-          name: "ocr_image",
-          description: "Perform OCR on an image using Deepseek.",
-          inputSchema: {
-            type: "object",
-            properties: {
-              image_path: {
-                type: "string",
-                description: "Path to the image file to OCR.",
-              },
-            },
-            required: ["image_path"],
-          },
-        },
-      ],
+      tools: TOOLS,
     }));
 
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
-      if (request.params.name === "ocr_image") {
-        return {
-          content: [
-            {
-              type: "text",
-              text: "OCR tool placeholder response. Ready for implementation.",
-            },
-          ],
-        };
-      }
-      throw new Error(`Tool not found: ${request.params.name}`);
-    });
+    // Dispatch tool calls
+    this.server.setRequestHandler(CallToolRequestSchema, (request) => handleCallTool(request));
   }
 
   async run() {
