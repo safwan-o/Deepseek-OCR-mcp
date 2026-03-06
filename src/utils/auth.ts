@@ -1,9 +1,14 @@
 import fs from "fs/promises";
 import path from "path";
-import { chromium, BrowserContext } from "playwright";
+import { chromium } from "playwright-extra";
+import StealthPlugin from "puppeteer-extra-plugin-stealth";
+import { BrowserContext } from "playwright";
 import dotenv from "dotenv";
 
 dotenv.config();
+
+// Apply stealth plugin
+chromium.use(StealthPlugin());
 
 const SESSION_FILE = path.join(process.cwd(), ".deepseek-session.json");
 
@@ -52,17 +57,21 @@ export class DeepseekAuth {
   static async authenticate(): Promise<AuthSession> {
     console.error("Launching browser for authentication...");
     
-    // We must use headless: false so the user can see and interact with the page
-    const browser = await chromium.launch({ headless: false });
-    const context = await browser.newContext();
+    const browser = await chromium.launch({ 
+      headless: false,
+      args: ["--disable-blink-features=AutomationControlled"]
+    });
+    
+    const context = await browser.newContext({
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    });
+
     const page = await context.newPage();
 
     await page.goto("https://chat.deepseek.com/login");
 
     console.error("Please sign in to Deepseek in the browser window.");
     
-    // Wait for the user to be redirected to the chat page after login
-    // Usually chat.deepseek.com/ or chat.deepseek.com/chat
     await page.waitForURL(/chat\.deepseek\.com\/?(chat)?/, { timeout: 300000 });
 
     console.error("Login detected! Capturing session data...");
@@ -97,6 +106,5 @@ export class DeepseekAuth {
    */
   static async applySession(context: BrowserContext, session: AuthSession) {
     await context.addCookies(session.cookies);
-    // Note: Local storage usually needs to be injected into a specific page/origin
   }
 }

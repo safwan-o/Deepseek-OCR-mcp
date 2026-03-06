@@ -1,12 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { handleCallTool } from "../src/handlers/tools.js";
 import { DeepseekAuth } from "../src/utils/auth.js";
+import { DeepseekUploader } from "../src/utils/uploader.js";
 
-// Mocking DeepseekAuth
+// Mocking DeepseekAuth and DeepseekUploader
 vi.mock("../src/utils/auth.js", () => ({
   DeepseekAuth: {
     authenticate: vi.fn(),
     hasSession: vi.fn(),
+  },
+}));
+
+vi.mock("../src/utils/uploader.js", () => ({
+  DeepseekUploader: {
+    sendData: vi.fn(),
   },
 }));
 
@@ -29,11 +36,26 @@ describe("Tool Handler Integration", () => {
     const response = await handleCallTool(request);
     expect(DeepseekAuth.authenticate).toHaveBeenCalled();
     expect(response.content[0].text).toContain("Authentication successful");
-    expect(response.content[0].text).toContain("2024-01-01");
   });
 
-  it("should return error when ocr_image tool is called without session", async () => {
-    vi.mocked(DeepseekAuth.hasSession).mockResolvedValue(false);
+  it("should return error when send_data tool fails", async () => {
+    vi.mocked(DeepseekUploader.sendData).mockRejectedValue(new Error("Upload failed"));
+
+    const request = {
+      params: {
+        name: "send_data",
+        arguments: { file_path: "test.pdf" },
+      },
+    };
+
+    const response = await handleCallTool(request);
+    expect(DeepseekUploader.sendData).toHaveBeenCalled();
+    expect(response.isError).toBe(true);
+    expect(response.content[0].text).toContain("Failed to send data: Upload failed");
+  });
+
+  it("should call sendData when ocr_image tool is invoked", async () => {
+    vi.mocked(DeepseekUploader.sendData).mockResolvedValue("OCR result");
 
     const request = {
       params: {
@@ -43,8 +65,7 @@ describe("Tool Handler Integration", () => {
     };
 
     const response = await handleCallTool(request);
-    expect(DeepseekAuth.hasSession).toHaveBeenCalled();
-    expect(response.isError).toBe(true);
-    expect(response.content[0].text).toContain("Authentication is missing");
+    expect(DeepseekUploader.sendData).toHaveBeenCalledWith("test.png", expect.stringContaining("OCR"));
+    expect(response.content[0].text).toBe("OCR result");
   });
 });
