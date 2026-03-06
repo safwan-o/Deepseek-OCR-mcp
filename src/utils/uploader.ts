@@ -92,7 +92,7 @@ export class DeepseekUploader {
 
       logger.info("Uploading file...");
       // Deepseek usually has an input[type='file']
-      const fileInput = await page.waitForSelector("input[type='file']", { timeout: 30000 });
+      const fileInput = await page.waitForSelector("input[type='file']", { state: "attached", timeout: 30000 });
       await fileInput.setInputFiles(path.resolve(filePath));
 
       // Wait for upload to complete by detecting the appearance of an attachment preview
@@ -103,7 +103,7 @@ export class DeepseekUploader {
       });
 
       logger.info("Sending prompt and waiting for generation...");
-      const messageInput = await page.waitForSelector("textarea, div[contenteditable='true']", { timeout: 30000 });
+      const messageInput = await page.waitForSelector("textarea, div[contenteditable='true']", { state: "attached", timeout: 30000 });
       await messageInput.fill(finalPrompt);
       await messageInput.press("Enter");
 
