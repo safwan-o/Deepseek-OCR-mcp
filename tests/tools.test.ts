@@ -44,7 +44,7 @@ describe("Tool Handler Integration", () => {
     const request = {
       params: {
         name: "send_data",
-        arguments: { file_path: "test.pdf" },
+        arguments: { file_path: "test.pdf", prompt: "Summarize" },
       },
     };
 
@@ -54,18 +54,31 @@ describe("Tool Handler Integration", () => {
     expect(response.content[0].text).toContain("Failed to send data: Upload failed");
   });
 
-  it("should call sendData when ocr_image tool is invoked", async () => {
+  it("should call sendData when ocr_document tool is invoked", async () => {
+    vi.mocked(DeepseekAuth.hasSession).mockResolvedValue(true);
     vi.mocked(DeepseekUploader.sendData).mockResolvedValue("OCR result");
 
     const request = {
       params: {
-        name: "ocr_image",
-        arguments: { image_path: "test.png" },
+        name: "ocr_document",
+        arguments: { file_path: "test.png" },
       },
     };
 
     const response = await handleCallTool(request);
-    expect(DeepseekUploader.sendData).toHaveBeenCalledWith("test.png", expect.stringContaining("OCR"));
+    expect(DeepseekUploader.sendData).toHaveBeenCalledWith("test.png");
     expect(response.content[0].text).toBe("OCR result");
+  });
+
+  it("should return success message when finish_operation is called", async () => {
+    const request = {
+      params: {
+        name: "finish_operation",
+        arguments: {},
+      },
+    };
+
+    const response = await handleCallTool(request);
+    expect(response.content[0].text).toContain("All operations finished");
   });
 });
