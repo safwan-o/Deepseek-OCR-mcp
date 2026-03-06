@@ -1,14 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { DeepseekAuth } from "../src/utils/auth.js";
 import fs from "fs/promises";
-import { chromium } from "playwright";
+import { chromium } from "playwright-extra";
 
-// Mocking fs and playwright
+// Mocking fs and playwright-extra
 vi.mock("fs/promises");
-vi.mock("playwright", () => ({
+vi.mock("playwright-extra", () => ({
   chromium: {
+    use: vi.fn(),
     launch: vi.fn(),
   },
+}));
+
+vi.mock("puppeteer-extra-plugin-stealth", () => ({
+  default: vi.fn(),
 }));
 
 describe("DeepseekAuth", () => {
@@ -64,11 +69,22 @@ describe("DeepseekAuth", () => {
 
     const session = await DeepseekAuth.authenticate();
 
-    expect(chromium.launch).toHaveBeenCalledWith({ headless: false });
+    expect(chromium.launch).toHaveBeenCalled();
     expect(mockPage.goto).toHaveBeenCalledWith("https://chat.deepseek.com/login");
     expect(mockPage.waitForURL).toHaveBeenCalled();
     expect(session.cookies).toHaveLength(1);
     expect(session.localStorage).toEqual({ some: "data" });
     expect(mockBrowser.close).toHaveBeenCalled();
+  });
+
+  it("should throw error if authentication is attempted in CI without explicit permission", async () => {
+    const originalCI = process.env.CI;
+    process.env.CI = "true";
+    
+    await expect(DeepseekAuth.authenticate()).rejects.toThrow(
+      "Interactive authentication is required but the current environment does not support headed browsers"
+    );
+    
+    process.env.CI = originalCI;
   });
 });
