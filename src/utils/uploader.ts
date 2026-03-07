@@ -4,6 +4,7 @@ import { DeepseekAuth, AuthSession } from "./auth.js";
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import { logger } from "./logger.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Go up two levels from dist/utils/ or src/utils/ to reach the project root
@@ -32,7 +33,7 @@ export class DeepseekUploader {
       return config[type];
     } catch (error: any) {
       const msg = `Failed to load prompt from ${this.PROMPT_FILE}: ${error.message}`;
-      console.error(msg);
+      logger.error(msg);
       throw new Error(msg);
     }
   }
@@ -76,7 +77,7 @@ export class DeepseekUploader {
 
       const page = await context.newPage();
       
-      console.error("Navigating to Deepseek Chat...");
+      logger.info("Navigating to Deepseek Chat...");
       await page.goto("https://chat.deepseek.com/", { waitUntil: "networkidle", timeout: 60000 });
 
       // Check if logged in
@@ -89,13 +90,13 @@ export class DeepseekUploader {
         return document.querySelectorAll(".ds-markdown, .assistant-message").length;
       });
 
-      console.error("Uploading file...");
+      logger.info("Uploading file...");
       // Deepseek usually has an input[type='file']
-      const fileInput = await page.waitForSelector("input[type='file']", { timeout: 30000 });
+      const fileInput = await page.waitForSelector("input[type='file']", { state: "attached", timeout: 30000 });
       await fileInput.setInputFiles(path.resolve(filePath));
 
       // Wait for upload to complete by detecting the appearance of an attachment preview
-      console.error("Waiting for upload to finish...");
+      logger.info("Waiting for upload to finish...");
       await page.waitForSelector(".ds-upload-list-item, [class*='upload-list-item'], [class*='attachment-preview']", { 
         timeout: 30000,
         state: "attached"
@@ -146,10 +147,34 @@ export class DeepseekUploader {
         throw new Error(`Stability not reached within ${MAX_WAIT_STABLE * 2}s. The generation may still be in progress or failed. Please check the chat manually.`);
       }
 
-      console.error("Extraction complete! Capturing OCR result...");
+      logger.info("Extraction complete! Capturing OCR result...");
+
+      // Capture conversation ID from URL to delete it later
+      const currentUrl = page.url();
+      const conversationId = currentUrl.split("/chat/")[1]?.split("?")[0];
+
+      if (conversationId) {
+        logger.info(`Deleting conversation: ${conversationId}`);
+        try {
+          // Attempt to find the delete button in the sidebar for the active chat
+          const deleteButton = await page.waitForSelector(`[data-chat-id="${conversationId}"] .ds-icon-delete, button[aria-label*="Delete"]`, { timeout: 5000 });
+          if (deleteButton) {
+            await deleteButton.click();
+            const confirmButton = await page.waitForSelector("button.ds-button--primary:has-text('Confirm'), button:has-text('Delete')", { timeout: 3000 });
+            if (confirmButton) {
+              await confirmButton.click();
+              logger.info("Conversation deleted successfully.");
+            }
+          }
+        } catch (deleteError: any) {
+          logger.warn(`Could not delete conversation (UI might have changed): ${deleteError.message}`);
+        }
+      }
+
       return lastText;
 
-    } catch (error: any) {
+      } catch (error: any) {
+
       console.error(`Error during data sending: ${error.message}`);
       throw error;
     } finally {

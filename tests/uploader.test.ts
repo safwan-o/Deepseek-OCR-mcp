@@ -59,18 +59,20 @@ describe("DeepseekUploader", () => {
     await expect(DeepseekUploader.sendData("test.png")).rejects.toThrow("Failed to load prompt");
   });
 
-  it("should perform upload and send prompt", async () => {
+  it("should perform upload, send prompt and delete conversation", async () => {
     const { chromium } = await import("playwright-extra");
     vi.mocked(fs.stat).mockResolvedValue({ size: 1024 } as any);
     vi.mocked(DeepseekAuth.loadSession).mockResolvedValue({ cookies: [], localStorage: {}, lastUpdated: "" });
-    
+
     const mockPage = {
       goto: vi.fn(),
-      url: vi.fn().mockReturnValue("https://chat.deepseek.com/"),
-      waitForSelector: vi.fn().mockResolvedValue({ 
-        setInputFiles: vi.fn(),
-        fill: vi.fn(),
-        press: vi.fn()
+      url: vi.fn().mockReturnValue("https://chat.deepseek.com/chat/test-conv-id"),
+      waitForSelector: vi.fn().mockImplementation((selector) => {
+        if (selector.includes('input')) return { setInputFiles: vi.fn() };
+        if (selector.includes('textarea')) return { fill: vi.fn(), press: vi.fn() };
+        if (selector.includes('ds-icon-delete')) return { click: vi.fn() };
+        if (selector.includes('Confirm')) return { click: vi.fn() };
+        return { attached: true };
       }),
       waitForTimeout: vi.fn(),
       evaluate: vi.fn().mockResolvedValue("OCR response text"),
@@ -88,11 +90,14 @@ describe("DeepseekUploader", () => {
     vi.mocked(chromium.launch).mockResolvedValue(mockBrowser as any);
 
     const result = await DeepseekUploader.sendData("test.png", "Perform OCR");
-    
+
     expect(chromium.launch).toHaveBeenCalled();
     expect(mockPage.goto).toHaveBeenCalledWith("https://chat.deepseek.com/", expect.anything());
     expect(mockPage.waitForSelector).toHaveBeenCalledWith("input[type='file']", expect.anything());
     expect(mockPage.waitForSelector).toHaveBeenCalledWith("textarea, div[contenteditable='true']", expect.anything());
+    // Verify deletion was attempted
+    expect(mockPage.url).toHaveBeenCalled();
+    expect(mockPage.waitForSelector).toHaveBeenCalledWith(expect.stringContaining('test-conv-id'), expect.anything());
     expect(result).toBe("OCR response text");
   });
 
