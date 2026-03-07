@@ -39,11 +39,15 @@ export class DeepseekUploader {
   }
 
   /**
-   * Send a file and prompt to Deepseek.
+   * Send one or more files and prompt to Deepseek.
    */
-  static async sendData(filePath: string, prompt?: string): Promise<string> {
-    // 1. Validate file
-    await this.validateFile(filePath);
+  static async sendData(filePaths: string | string[], prompt?: string): Promise<string> {
+    const paths = Array.isArray(filePaths) ? filePaths : [filePaths];
+
+    // 1. Validate files
+    for (const filePath of paths) {
+      await this.validateFile(filePath);
+    }
 
     // 2. Load session
     const session = await DeepseekAuth.loadSession();
@@ -90,16 +94,15 @@ export class DeepseekUploader {
         return document.querySelectorAll(".ds-markdown, .assistant-message").length;
       });
 
-      logger.info("Uploading file...");
-      // Deepseek usually has an input[type='file']
+      logger.info("Uploading file(s)...");
       const fileInput = await page.waitForSelector("input[type='file']", { state: "attached", timeout: 30000 });
-      await fileInput.setInputFiles(path.resolve(filePath));
+      await fileInput.setInputFiles(paths.map(p => path.resolve(p)));
 
-      // Wait for upload to complete by detecting the appearance of an attachment preview
-      logger.info("Waiting for upload to finish...");
+      // Wait for uploads to complete
+      logger.info("Waiting for upload(s) to finish...");
       try {
         await page.waitForSelector(".ds-upload-list-item, [class*='upload-list-item'], [class*='attachment-preview'], .ds-attachment", { 
-          timeout: 15000,
+          timeout: 20000,
           state: "attached"
         });
       } catch (e) {
