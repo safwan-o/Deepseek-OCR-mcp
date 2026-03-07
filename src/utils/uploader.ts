@@ -65,7 +65,7 @@ export class DeepseekUploader {
         userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       });
 
-      // 4. Restore session (cookies and localStorage)
+      // 5. Restore session (cookies and localStorage)
       await context.addCookies(session.cookies);
       
       const localStorageData = session.localStorage;
@@ -107,8 +107,7 @@ export class DeepseekUploader {
       }
 
       logger.info("Sending prompt and waiting for generation...");
-
-      const messageInput = await page.waitForSelector("textarea, div[contenteditable='true']", { timeout: 30000 });
+      const messageInput = await page.waitForSelector("textarea, div[contenteditable='true']", { state: "attached", timeout: 30000 });
       await messageInput.fill(finalPrompt);
       await messageInput.press("Enter");
 
@@ -178,14 +177,13 @@ export class DeepseekUploader {
 
       return lastText;
 
-      } catch (error: any) {
-
-      console.error(`Error during data sending: ${error.message}`);
+    } catch (error: any) {
+      logger.error({ error }, "Error during data sending");
       throw error;
     } finally {
       if (browser) {
         await browser.close();
-        console.error("Browser closed. Returning to hibernation.");
+        logger.info("Browser closed. Returning to hibernation.");
       }
     }
   }

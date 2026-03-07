@@ -7,9 +7,9 @@ An advanced Model Context Protocol (MCP) server that provides high-fidelity OCR 
 - **High-Fidelity OCR**: Extract text exactly as it appears in images or PDFs using Deepseek's latest models.
 - **Table Support**: Automatically detects and converts document tables into clean Markdown format.
 - **Auto-Cleanup**: Automatically deletes the conversation from your Deepseek dashboard after extraction to keep your history clean.
-- **Stealth Automation**: Uses advanced evasion techniques and stealth plugins to bypass anti-bot measures.
+- **Stealth Automation**: Built-in evasion techniques to bypass anti-bot measures.
 - **Session Persistence**: Robust authentication system that saves sessions for seamless reuse.
-- **Docker Ready**: Fully containerized and optimized for cloud or local deployment.
+- **Docker Ready**: Fully containerized for easy deployment.
 - **Production-Grade Logging**: Integrated with `pino` for structured, non-interfering logging.
 
 ## 📋 Prerequisites
@@ -63,11 +63,14 @@ Use the `send_data` tool to ask specific questions about a document.
 
 ## ⚙️ Configuration
 
+### Environment Variables
+
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `OCR_PROMPT_FILE` | Path to custom prompt JSON | `OCR-extraction-prompt.json` |
 | `LOG_LEVEL` | Logging verbosity (`debug`, `info`, `warn`, `error`) | `info` |
 | `DEEPSEEK_SESSION_JSON` | Direct session injection for CI/CD | `undefined` |
+| `ALLOW_INTERACTIVE_AUTH` | Set to `true` to allow interactive login | `false` |
 
 ## 🧪 Testing
 
