@@ -44,7 +44,7 @@ describe("Tool Handler Integration", () => {
     const request = {
       params: {
         name: "send_data",
-        arguments: { file_path: "test.pdf", prompt: "Summarize" },
+        arguments: { file_paths: ["test.pdf"], prompt: "Summarize" },
       },
     };
 
@@ -61,12 +61,12 @@ describe("Tool Handler Integration", () => {
     const request = {
       params: {
         name: "ocr_document",
-        arguments: { file_path: "test.png" },
+        arguments: { file_paths: ["test.png"] },
       },
     };
 
     const response = await handleCallTool(request);
-    expect(DeepseekUploader.sendData).toHaveBeenCalledWith("test.png");
+    expect(DeepseekUploader.sendData).toHaveBeenCalledWith(["test.png"]);
     expect(response.content[0].text).toBe("OCR result");
   });
 

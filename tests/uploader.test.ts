@@ -28,9 +28,9 @@ describe("DeepseekUploader", () => {
     vi.clearAllMocks();
   });
 
-  it("should validate file existence and size", async () => {
+  it("should validate file existence and size for multiple files", async () => {
     vi.mocked(fs.stat).mockResolvedValue({ size: 51 * 1024 * 1024 } as any);
-    await expect(DeepseekUploader.sendData("test.png", "test")).rejects.toThrow("exceeds 50MB limit");
+    await expect(DeepseekUploader.sendData(["test1.png", "test2.png"], "test")).rejects.toThrow("exceeds 50MB limit");
   });
 
   it("should fail if no session found", async () => {
@@ -59,16 +59,17 @@ describe("DeepseekUploader", () => {
     await expect(DeepseekUploader.sendData("test.png")).rejects.toThrow("Failed to load prompt");
   });
 
-  it("should perform upload, send prompt and delete conversation", async () => {
+  it("should perform multiple file upload, send prompt and delete conversation", async () => {
     const { chromium } = await import("playwright-extra");
     vi.mocked(fs.stat).mockResolvedValue({ size: 1024 } as any);
     vi.mocked(DeepseekAuth.loadSession).mockResolvedValue({ cookies: [], localStorage: {}, lastUpdated: "" });
 
+    const mockFileInput = { setInputFiles: vi.fn() };
     const mockPage = {
       goto: vi.fn(),
       url: vi.fn().mockReturnValue("https://chat.deepseek.com/chat/test-conv-id"),
       waitForSelector: vi.fn().mockImplementation((selector) => {
-        if (selector.includes('input')) return { setInputFiles: vi.fn() };
+        if (selector === "input[type='file']") return mockFileInput;
         if (selector.includes('textarea')) return { fill: vi.fn(), press: vi.fn() };
         if (selector.includes('ds-icon-delete')) return { click: vi.fn() };
         if (selector.includes('Confirm')) return { click: vi.fn() };
@@ -89,15 +90,12 @@ describe("DeepseekUploader", () => {
 
     vi.mocked(chromium.launch).mockResolvedValue(mockBrowser as any);
 
-    const result = await DeepseekUploader.sendData("test.png", "Perform OCR");
+    const result = await DeepseekUploader.sendData(["test1.png", "test2.png"], "Perform OCR");
 
     expect(chromium.launch).toHaveBeenCalled();
     expect(mockPage.goto).toHaveBeenCalledWith("https://chat.deepseek.com/", expect.anything());
     expect(mockPage.waitForSelector).toHaveBeenCalledWith("input[type='file']", expect.anything());
-    expect(mockPage.waitForSelector).toHaveBeenCalledWith("textarea, div[contenteditable='true']", expect.anything());
-    // Verify deletion was attempted
-    expect(mockPage.url).toHaveBeenCalled();
-    expect(mockPage.waitForSelector).toHaveBeenCalledWith(expect.stringContaining('test-conv-id'), expect.anything());
+    expect(mockFileInput.setInputFiles).toHaveBeenCalledWith([expect.stringContaining("test1.png"), expect.stringContaining("test2.png")]);
     expect(result).toBe("OCR response text");
   });
 

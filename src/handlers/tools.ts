@@ -17,34 +17,36 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "ocr_document",
-    description: "Perform high-fidelity OCR on an image or PDF using Deepseek's advanced models. Uses the pre-configured extraction prompt.",
+    description: "Perform high-fidelity OCR on one or more images or PDF files using Deepseek's advanced models. Uses the pre-configured extraction prompt.",
     inputSchema: {
       type: "object",
       properties: {
-        file_path: {
-          type: "string",
-          description: "Absolute path to the image (JPG, PNG, WEBP) or PDF file.",
+        file_paths: {
+          type: "array",
+          items: { type: "string" },
+          description: "Absolute paths to the image (JPG, PNG, WEBP) or PDF files.",
         },
       },
-      required: ["file_path"],
+      required: ["file_paths"],
     },
   },
   {
     name: "send_data",
-    description: "Send a file and a custom prompt to Deepseek chat. Returns the assistant's full response.",
+    description: "Send one or more files and a custom prompt to Deepseek chat. Returns the assistant's full response.",
     inputSchema: {
       type: "object",
       properties: {
-        file_path: {
-          type: "string",
-          description: "Absolute path to the file to send.",
+        file_paths: {
+          type: "array",
+          items: { type: "string" },
+          description: "Absolute paths to the files to send.",
         },
         prompt: {
           type: "string",
-          description: "Custom prompt to accompany the file.",
+          description: "Custom prompt to accompany the file(s).",
         },
       },
-      required: ["file_path", "prompt"],
+      required: ["file_paths", "prompt"],
     },
   },
   {
@@ -62,7 +64,7 @@ export const TOOLS: Tool[] = [
  * Handles tool calls.
  */
 export async function handleCallTool(request: any) {
-  const { name, arguments: args } = request.params;
+  const { name, arguments: toolArgs } = request.params;
 
   switch (name) {
     case "authenticate": {
@@ -90,9 +92,14 @@ export async function handleCallTool(request: any) {
     }
 
     case "ocr_document": {
-      const { file_path } = args;
+      if (!toolArgs || !toolArgs.file_paths) {
+        return {
+          content: [{ type: "text", text: "Missing required argument: file_paths" }],
+          isError: true,
+        };
+      }
+      const { file_paths } = toolArgs;
       
-      // Workflow: Check Auth -> Send Status -> Process -> Return Result -> Hibernate
       const hasAuth = await DeepseekAuth.hasSession();
       if (!hasAuth) {
         return {
@@ -107,10 +114,7 @@ export async function handleCallTool(request: any) {
       }
 
       try {
-        // Note: In standard MCP tool calls, we can't easily send an intermediate "pending" status 
-        // while the tool is still running, unless the host supports progress notifications.
-        // We will return the final OCR result after full generation.
-        const result = await DeepseekUploader.sendData(file_path);
+        const result = await DeepseekUploader.sendData(file_paths);
         return {
           content: [
             {
@@ -133,10 +137,16 @@ export async function handleCallTool(request: any) {
     }
 
     case "send_data": {
-      const { file_path, prompt } = args;
+      if (!toolArgs || !toolArgs.file_paths || !toolArgs.prompt) {
+        return {
+          content: [{ type: "text", text: "Missing required arguments: file_paths and prompt" }],
+          isError: true,
+        };
+      }
+      const { file_paths, prompt } = toolArgs;
 
       try {
-        const responseText = await DeepseekUploader.sendData(file_path, prompt);
+        const responseText = await DeepseekUploader.sendData(file_paths, prompt);
         return {
           content: [
             {
