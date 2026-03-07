@@ -97,12 +97,17 @@ export class DeepseekUploader {
 
       // Wait for upload to complete by detecting the appearance of an attachment preview
       logger.info("Waiting for upload to finish...");
-      await page.waitForSelector(".ds-upload-list-item, [class*='upload-list-item'], [class*='attachment-preview']", { 
-        timeout: 30000,
-        state: "attached"
-      });
+      try {
+        await page.waitForSelector(".ds-upload-list-item, [class*='upload-list-item'], [class*='attachment-preview'], .ds-attachment", { 
+          timeout: 15000,
+          state: "attached"
+        });
+      } catch (e) {
+        logger.warn("Could not find upload preview element, but proceeding anyway...");
+      }
 
-      console.error("Sending prompt and waiting for generation...");
+      logger.info("Sending prompt and waiting for generation...");
+
       const messageInput = await page.waitForSelector("textarea, div[contenteditable='true']", { timeout: 30000 });
       await messageInput.fill(finalPrompt);
       await messageInput.press("Enter");
