@@ -1,5 +1,13 @@
 import pino from "pino";
+import dotenv from "dotenv";
 
+dotenv.config();
+
+/**
+ * Configure the production logger using pino.
+ * In development, we use pino-pretty for better readability.
+ * We write to stderr to avoid corrupting MCP stdio transport.
+ */
 export const logger = pino({
   level: process.env.LOG_LEVEL || "info",
   transport: {
@@ -7,7 +15,8 @@ export const logger = pino({
     options: {
       colorize: true,
       ignore: "pid,hostname",
-      destination: 2, // Write to stderr to avoid corrupting MCP stdio transport
+      translateTime: "HH:MM:ss.l",
+      destination: 2, // Write to stderr
     },
   },
 });

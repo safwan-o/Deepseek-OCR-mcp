@@ -152,6 +152,29 @@ export class DeepseekUploader {
       }
 
       logger.info("Extraction complete! Capturing OCR result...");
+
+      // Capture conversation ID from URL to delete it later
+      const currentUrl = page.url();
+      const conversationId = currentUrl.split("/chat/")[1]?.split("?")[0];
+
+      if (conversationId) {
+        logger.info(`Deleting conversation: ${conversationId}`);
+        try {
+          // Attempt to find the delete button in the sidebar for the active chat
+          const deleteButton = await page.waitForSelector(`[data-chat-id="${conversationId}"] .ds-icon-delete, button[aria-label*="Delete"]`, { timeout: 5000 });
+          if (deleteButton) {
+            await deleteButton.click();
+            const confirmButton = await page.waitForSelector("button.ds-button--primary:has-text('Confirm'), button:has-text('Delete')", { timeout: 3000 });
+            if (confirmButton) {
+              await confirmButton.click();
+              logger.info("Conversation deleted successfully.");
+            }
+          }
+        } catch (deleteError: any) {
+          logger.warn(`Could not delete conversation (UI might have changed): ${deleteError.message}`);
+        }
+      }
+
       return lastText;
 
     } catch (error: any) {
